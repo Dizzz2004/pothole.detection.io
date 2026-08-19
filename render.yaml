@@ -1,0 +1,13 @@
+# Render Blueprint — deploy this repo with "New + > Blueprint" on render.com
+# Docs: https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: road-guardian-pothole-detection
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --workers 2 --threads 4 --timeout 120 --bind 0.0.0.0:$PORT app:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.0
