@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Road Guardian · Pothole Detection</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<div class="scanline-overlay"></div>
+
+<header class="topbar">
+  <div class="topbar-left">
+    <div class="logo-mark" aria-hidden="true">
+      <svg viewBox="0 0 40 40" width="30" height="30">
+        <circle cx="20" cy="20" r="17" fill="none" stroke="var(--amber)" stroke-width="2.5"/>
+        <path d="M10 24 L16 14 L24 14 L30 24" fill="none" stroke="var(--amber)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="20" cy="24" r="2.6" fill="var(--amber)"/>
+      </svg>
+    </div>
+    <div>
+      <div class="brand">ROAD GUARDIAN</div>
+      <div class="brand-sub">AI Pothole Detection &amp; Reporting System</div>
+    </div>
+  </div>
+  <nav class="topbar-nav">
+    <button class="nav-btn active" data-tab="dashboard">Dashboard</button>
+    <button class="nav-btn" data-tab="detect">Detect</button>
+    <button class="nav-btn" data-tab="map">Map</button>
+    <button class="nav-btn" data-tab="history">History</button>
+  </nav>
+  <div class="status-chip" id="apiStatus"><span class="dot"></span>connecting…</div>
+</header>
+
+<main class="app-shell">
+
+  <!-- ================= DASHBOARD ================= -->
+  <section class="view active" id="view-dashboard">
+    <div class="view-head">
+      <h1>Road safety overview</h1>
+      <p class="muted">Live summary of every image processed this session.</p>
+    </div>
+
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-label">Images Processed</div>
+        <div class="stat-value" id="statImages">0</div>
+        <div class="stat-icon">▣</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Potholes Detected</div>
+        <div class="stat-value" id="statPotholes">0</div>
+        <div class="stat-icon">◎</div>
+      </div>
+      <div class="stat-card severity-high">
+        <div class="stat-label">High Severity</div>
+        <div class="stat-value" id="statHigh">0</div>
+        <div class="stat-icon">▲</div>
+      </div>
+      <div class="stat-card severity-medium">
+        <div class="stat-label">Medium Severity</div>
+        <div class="stat-value" id="statMedium">0</div>
+        <div class="stat-icon">◆</div>
+      </div>
+      <div class="stat-card severity-low">
+        <div class="stat-label">Low Severity</div>
+        <div class="stat-value" id="statLow">0</div>
+        <div class="stat-icon">●</div>
+      </div>
+    </div>
+
+    <div class="panel-row">
+      <div class="panel">
+        <div class="panel-head">Recent Detections</div>
+        <div id="recentList" class="recent-list">
+          <div class="empty-state">No detections yet. Head to <strong>Detect</strong> to scan a road image.</div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">How it works</div>
+        <ol class="pipeline-steps">
+          <li><span>01</span>Capture a road-surface image (camera / dashcam / phone).</li>
+          <li><span>02</span>OpenCV isolates dark, irregular surface regions.</li>
+          <li><span>03</span>A RandomForest classifier verifies true potholes vs. shadows/cracks/markings.</li>
+          <li><span>04</span>Detections are severity-ranked and geo-tagged.</li>
+          <li><span>05</span>Results are logged for the maintenance dashboard.</li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= DETECT ================= -->
+  <section class="view" id="view-detect">
+    <div class="view-head">
+      <h1>Run detection</h1>
+      <p class="muted">Upload a road-surface photo to detect and classify potholes.</p>
+    </div>
+
+    <div class="detect-grid">
+      <div class="panel upload-panel">
+        <div class="dropzone" id="dropzone">
+          <input type="file" id="fileInput" accept="image/png, image/jpeg, image/webp" hidden />
+          <div class="dropzone-inner">
+            <div class="dropzone-icon">⤒</div>
+            <div class="dropzone-title">Drop an image here</div>
+            <div class="dropzone-sub">or click to browse · JPG, PNG, WEBP</div>
+          </div>
+        </div>
+        <button class="btn-primary" id="detectBtn" disabled>Start Detection</button>
+        <div class="confidence-row">
+          <label for="confSlider">Sensitivity</label>
+          <input type="range" id="confSlider" min="0.3" max="0.9" step="0.05" value="0.55" />
+          <span id="confVal">0.55</span>
+        </div>
+      </div>
+
+      <div class="panel result-panel">
+        <div class="panel-head">Result</div>
+        <div id="resultArea" class="result-area">
+          <div class="empty-state">Annotated image will appear here after detection.</div>
+        </div>
+        <div id="detectionTable"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= MAP ================= -->
+  <section class="view" id="view-map">
+    <div class="view-head">
+      <h1>Pothole map</h1>
+      <p class="muted">Geo-tagged locations of every detection logged this session.</p>
+    </div>
+    <div class="panel map-panel">
+      <div id="mapCanvas" class="map-canvas">
+        <div class="empty-state">No geo-tagged detections yet.</div>
+      </div>
+      <div class="map-legend">
+        <span><i class="dot dot-high"></i>High</span>
+        <span><i class="dot dot-medium"></i>Medium</span>
+        <span><i class="dot dot-low"></i>Low</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= HISTORY ================= -->
+  <section class="view" id="view-history">
+    <div class="view-head-row">
+      <div>
+        <h1>Detection history</h1>
+        <p class="muted">Every scan run in this session, most recent first.</p>
+      </div>
+      <button class="btn-ghost" id="clearHistoryBtn">Clear history</button>
+    </div>
+    <div class="panel">
+      <table class="history-table">
+        <thead>
+          <tr><th>ID</th><th>File</th><th>Time</th><th>Detections</th><th>Severity Mix</th></tr>
+        </thead>
+        <tbody id="historyBody">
+          <tr><td colspan="5" class="empty-state">No history yet.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+</main>
+
+<script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
